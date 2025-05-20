@@ -264,18 +264,20 @@ export default function RichTextEditor({ initialContent, onChange }: RichTextEdi
         </div>
       </TooltipProvider>
 
-      <div
-        ref={editorRef}
-        className="flex-1 p-8 focus:outline-none focus:ring-0 overflow-auto prose dark:prose-invert max-w-none"
-        contentEditable
-        dangerouslySetInnerHTML={{ __html: editorContent }}
-        onInput={handleContentChange}
-        style={{
-          lineHeight: 1.6,
-          fontSize: "1rem",
-          fontFamily: "system-ui, -apple-system, sans-serif",
-        }}
-      />
+      <div className="flex-1 overflow-auto">
+        <div
+          ref={editorRef}
+          className="h-full p-8 focus:outline-none focus:ring-0 prose dark:prose-invert max-w-none"
+          contentEditable
+          suppressContentEditableWarning
+          onInput={handleContentChange}
+          style={{
+            lineHeight: 1.6,
+            fontSize: "1rem",
+            fontFamily: "system-ui, -apple-system, sans-serif",
+          }}
+        />
+      </div>
     </div>
   )
 }
