@@ -34,7 +34,7 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
       {/* Left side - Branding */}
       <div className="hidden lg:flex flex-col w-1/2 bg-blue-600 text-white p-10 justify-between">
         <div>
