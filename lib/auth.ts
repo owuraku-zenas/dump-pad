@@ -1,14 +1,26 @@
 import { NextAuthOptions } from "next-auth"
 import { PrismaAdapter } from "@auth/prisma-adapter"
-import { prisma } from "@/lib/prisma"
+import { db } from "@/lib/prisma"
 import GoogleProvider from "next-auth/providers/google"
 import GithubProvider from "next-auth/providers/github"
 import CredentialsProvider from "next-auth/providers/credentials"
 import bcrypt from "bcryptjs"
+import EmailProvider from "next-auth/providers/email"
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  adapter: PrismaAdapter(db),
   providers: [
+    EmailProvider({
+      server: {
+        host: process.env.EMAIL_SERVER_HOST,
+        port: Number(process.env.EMAIL_SERVER_PORT),
+        auth: {
+          user: process.env.EMAIL_SERVER_USER,
+          pass: process.env.EMAIL_SERVER_PASSWORD,
+        },
+      },
+      from: process.env.EMAIL_FROM,
+    }),
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
@@ -28,7 +40,7 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Invalid credentials")
         }
 
-        const user = await prisma.user.findUnique({
+        const user = await db.user.findUnique({
           where: {
             email: credentials.email
           }
@@ -58,11 +70,6 @@ export const authOptions: NextAuthOptions = {
     verifyRequest: "/auth/verify-request",
     newUser: "/auth/new-user"
   },
-  debug: process.env.NODE_ENV === "development",
-  session: {
-    strategy: "jwt"
-  },
-  secret: process.env.NEXTAUTH_SECRET,
   callbacks: {
     async signIn({ user, account, profile }) {
       if (account?.provider === "credentials") {
@@ -70,7 +77,7 @@ export const authOptions: NextAuthOptions = {
       }
 
       // Check if user exists with this email
-      const existingUser = await prisma.user.findUnique({
+      const existingUser = await db.user.findUnique({
         where: { email: user.email! },
         include: { accounts: true }
       })
@@ -82,7 +89,7 @@ export const authOptions: NextAuthOptions = {
         )
 
         if (!hasProviderAccount) {
-          await prisma.account.create({
+          await db.account.create({
             data: {
               userId: existingUser.id,
               type: account?.type!,
@@ -100,6 +107,29 @@ export const authOptions: NextAuthOptions = {
       }
 
       return true
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.sub!
+      }
+      return session
     }
-  }
+  },
+  events: {
+    async createUser({ user }) {
+      // Send welcome email
+      await db.verificationToken.create({
+        data: {
+          identifier: user.email!,
+          token: crypto.randomUUID(),
+          expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+        },
+      })
+    },
+  },
+  debug: process.env.NODE_ENV === "development",
+  session: {
+    strategy: "jwt"
+  },
+  secret: process.env.NEXTAUTH_SECRET,
 } 

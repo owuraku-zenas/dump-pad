@@ -51,6 +51,8 @@ model User {
   password      String?
   accounts      Account[]
   sessions      Session[]
+  verificationTokens VerificationToken[]
+  passwordResetTokens PasswordResetToken[]
   notes         Note[]
   documents     Document[]
   tasks         Task[]
@@ -64,6 +66,19 @@ model VerificationToken {
   identifier String
   token      String   @unique
   expires    DateTime
+
+  user User @relation(fields: [identifier], references: [email], onDelete: Cascade)
+
+  @@unique([identifier, token])
+}
+
+model PasswordResetToken {
+  id         String   @id @default(cuid())
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  user User @relation(fields: [identifier], references: [email], onDelete: Cascade)
 
   @@unique([identifier, token])
 }
