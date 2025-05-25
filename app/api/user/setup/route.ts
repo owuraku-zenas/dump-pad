@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
-import prisma from "@/lib/prisma"
+import { auth } from "@/lib/auth"
+import { db } from "@/lib/db"
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await auth()
 
     if (!session?.user?.email) {
       return new NextResponse("Unauthorized", { status: 401 })
@@ -18,7 +17,7 @@ export async function POST(req: Request) {
     }
 
     // Check if user already has a name
-    const existingUser = await prisma.user.findUnique({
+    const existingUser = await db.user.findUnique({
       where: {
         email: session.user.email,
       },
@@ -33,7 +32,7 @@ export async function POST(req: Request) {
     }
 
     // Update the user's name
-    const user = await prisma.user.update({
+    const user = await db.user.update({
       where: {
         email: session.user.email,
       },

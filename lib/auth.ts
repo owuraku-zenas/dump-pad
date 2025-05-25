@@ -1,33 +1,110 @@
-import { NextAuthOptions } from "next-auth"
+import NextAuth from "next-auth"
 import { PrismaAdapter } from "@auth/prisma-adapter"
-import { db } from "@/lib/prisma"
-import GoogleProvider from "next-auth/providers/google"
-import GithubProvider from "next-auth/providers/github"
-import CredentialsProvider from "next-auth/providers/credentials"
+import { db } from "@/lib/db"
 import bcrypt from "bcryptjs"
-import EmailProvider from "next-auth/providers/email"
+import CredentialsProvider from "next-auth/providers/credentials"
+import GithubProvider from "next-auth/providers/github"
+import GoogleProvider from "next-auth/providers/google"
 
-export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(db),
-  providers: [
-    EmailProvider({
-      server: {
-        host: process.env.EMAIL_SERVER_HOST,
-        port: Number(process.env.EMAIL_SERVER_PORT),
-        auth: {
-          user: process.env.EMAIL_SERVER_USER,
-          pass: process.env.EMAIL_SERVER_PASSWORD,
+// Custom adapter to handle account linking
+const customAdapter = {
+  ...PrismaAdapter(db),
+  async getUserByAccount({ provider, providerAccountId }) {
+    try {
+      // First try to find the account
+      const account = await db.account.findFirst({
+        where: {
+          provider,
+          providerAccountId,
         },
+        include: {
+          user: true,
+        },
+      })
+
+      if (!account) {
+        return null
+      }
+
+      // If we found an account, return the associated user
+      return account.user
+    } catch (error) {
+      console.error("Error in getUserByAccount:", error)
+      return null
+    }
+  },
+  async linkAccount(account) {
+    try {
+      // Check if this GitHub account is already linked
+      const existingAccount = await db.account.findFirst({
+        where: {
+          provider: account.provider,
+          providerAccountId: account.providerAccountId,
+        },
+      })
+
+      if (existingAccount) {
+        // If account exists, update it
+        return await db.account.update({
+          where: { id: existingAccount.id },
+          data: {
+            userId: account.userId,
+            access_token: account.access_token,
+            token_type: account.token_type,
+            scope: account.scope,
+          },
+        })
+      }
+
+      // If no existing account, create new one
+      return await db.account.create({
+        data: account,
+      })
+    } catch (error) {
+      console.error("Error in linkAccount:", error)
+      throw error
+    }
+  },
+}
+
+export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
+  adapter: customAdapter,
+  session: {
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+    updateAge: 24 * 60 * 60, // 24 hours
+  },
+  jwt: {
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
+  pages: {
+    signIn: "/auth/signin",
+    error: "/auth/error",
+  },
+  providers: [
+    GithubProvider({
+      clientId: process.env.GITHUB_ID!,
+      clientSecret: process.env.GITHUB_SECRET!,
+      profile(profile) {
+        console.log("GitHub Profile Data:", JSON.stringify(profile, null, 2))
+        return {
+          id: profile.id.toString(),
+          email: profile.email,
+          image: profile.avatar_url,
+        }
       },
-      from: process.env.EMAIL_FROM,
     }),
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
-    GithubProvider({
-      clientId: process.env.GITHUB_CLIENT_ID!,
-      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+      profile(profile) {
+        console.log("Google Profile Data:", JSON.stringify(profile, null, 2))
+        return {
+          id: profile.sub,
+          email: profile.email,
+          image: profile.picture,
+        }
+      },
     }),
     CredentialsProvider({
       name: "credentials",
@@ -59,77 +136,88 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Invalid credentials")
         }
 
-        return user
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          image: user.image,
+        }
       }
     })
   ],
-  pages: {
-    signIn: "/auth/signin",
-    signOut: "/auth/signout",
-    error: "/auth/error",
-    verifyRequest: "/auth/verify-request",
-    newUser: "/auth/new-user"
-  },
   callbacks: {
     async signIn({ user, account, profile }) {
-      if (account?.provider === "credentials") {
-        return true
-      }
-
-      // Check if user exists with this email
-      const existingUser = await db.user.findUnique({
-        where: { email: user.email! },
-        include: { accounts: true }
+      console.log("SignIn Callback Data:", {
+        user: JSON.stringify(user, null, 2),
+        account: JSON.stringify(account, null, 2),
+        profile: JSON.stringify(profile, null, 2)
       })
-
-      if (existingUser) {
-        // If user exists but doesn't have this provider account, link it
-        const hasProviderAccount = existingUser.accounts.some(
-          acc => acc.provider === account?.provider
-        )
-
-        if (!hasProviderAccount) {
-          await db.account.create({
-            data: {
-              userId: existingUser.id,
-              type: account?.type!,
-              provider: account?.provider!,
-              providerAccountId: account?.providerAccountId!,
-              access_token: account?.access_token,
-              token_type: account?.token_type,
-              scope: account?.scope,
-              id_token: account?.id_token,
-              expires_at: account?.expires_at
-            }
+      
+      if (account?.provider === "github" || account?.provider === "google") {
+        try {
+          // Check for existing user with the same email
+          const existingUser = await db.user.findUnique({
+            where: { email: user.email! },
+            include: { accounts: true }
           })
-        }
-        return true
-      }
 
+          if (existingUser) {
+            // Only update image if needed
+            if (!existingUser.image) {
+              await db.user.update({
+                where: { id: existingUser.id },
+                data: {
+                  image: user.image,
+                }
+              })
+            }
+            return true
+          }
+        } catch (error) {
+          console.error("Error in signIn callback:", error)
+          return false
+        }
+      }
       return true
     },
-    async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.sub!
+    async session({ token, session }) {
+      if (token) {
+        session.user.id = token.id
+        session.user.name = token.name
+        session.user.email = token.email
+        session.user.image = token.picture
       }
       return session
-    }
-  },
-  events: {
-    async createUser({ user }) {
-      // Send welcome email
-      await db.verificationToken.create({
-        data: {
-          identifier: user.email!,
-          token: crypto.randomUUID(),
-          expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
-        },
-      })
     },
-  },
-  debug: process.env.NODE_ENV === "development",
-  session: {
-    strategy: "jwt"
-  },
-  secret: process.env.NEXTAUTH_SECRET,
-} 
+    async jwt({ token, user, account }) {
+      if (user) {
+        token.id = user.id
+        token.name = user.name
+        token.email = user.email
+        token.picture = user.image
+      }
+      
+      // Always fetch fresh data from the database
+      const dbUser = await db.user.findFirst({
+        where: {
+          email: token.email,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          image: true,
+        }
+      })
+
+      if (dbUser) {
+        token.id = dbUser.id
+        token.name = dbUser.name
+        token.email = dbUser.email
+        token.picture = dbUser.image
+      }
+
+      return token
+    }
+  }
+}) 

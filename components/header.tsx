@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react"
 import { usePathname } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Bell, Search, User, Settings } from "lucide-react"
 import { useNotification } from "@/components/notification-provider"
@@ -15,9 +16,11 @@ import Link from "next/link"
 
 export default function Header() {
   const pathname = usePathname()
+  const { data: session } = useSession()
   const { notifications, markAsRead, unreadCount } = useNotification()
   const [showSearch, setShowSearch] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
 
   // useEffect only runs on the client, so now we can safely show the UI
   useEffect(() => {
@@ -76,7 +79,7 @@ export default function Header() {
                 Mark all as read
               </Button>
             </div>
-            <div className="max-h-[300px] overflow-auto">
+            <div className="max-h-[300px] overflow-y-auto">
               {notifications.length === 0 ? (
                 <div className="p-4 text-center text-gray-500 dark:text-gray-400">No notifications</div>
               ) : (
@@ -107,25 +110,34 @@ export default function Header() {
           </PopoverContent>
         </Popover>
 
-        <Popover>
+        <Popover open={profileOpen} onOpenChange={setProfileOpen}>
           <PopoverTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full h-8 w-8">
               <Avatar className="h-8 w-8">
-                <AvatarFallback>DP</AvatarFallback>
+                <AvatarImage src={session?.user?.image || ""} alt={session?.user?.name || ""} />
+                <AvatarFallback>
+                  {session?.user?.name?.charAt(0) || session?.user?.email?.charAt(0)}
+                </AvatarFallback>
               </Avatar>
             </Button>
           </PopoverTrigger>
           <PopoverContent align="end" className="w-56 p-2">
             <div className="flex flex-col space-y-1">
-              <Button variant="ghost" className="justify-start">
-                <User size={16} className="mr-2" />
-                Profile
-              </Button>
-              <Button variant="ghost" className="justify-start">
-                <Settings size={16} className="mr-2" />
-                Settings
-              </Button>
-              <LogoutButton />
+              <Link href="/profile" onClick={() => setProfileOpen(false)}>
+                <Button variant="ghost" className="justify-start w-full">
+                  <User size={16} className="mr-2" />
+                  Profile
+                </Button>
+              </Link>
+              <Link href="/settings" onClick={() => setProfileOpen(false)}>
+                <Button variant="ghost" className="justify-start w-full">
+                  <Settings size={16} className="mr-2" />
+                  Settings
+                </Button>
+              </Link>
+              <div onClick={() => setProfileOpen(false)}>
+                <LogoutButton />
+              </div>
             </div>
           </PopoverContent>
         </Popover>

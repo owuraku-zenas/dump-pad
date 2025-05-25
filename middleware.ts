@@ -5,9 +5,11 @@ import { getToken } from "next-auth/jwt"
 export async function middleware(request: NextRequest) {
   const token = await getToken({ 
     req: request,
-    secret: process.env.NEXTAUTH_SECRET
+    secret: process.env.NEXTAUTH_SECRET,
+    secureCookie: process.env.NODE_ENV === "production"
   })
   
+  // Check if the user is authenticated
   if (!token) {
     const signInUrl = new URL("/auth/signin", request.url)
     signInUrl.searchParams.set("callbackUrl", request.url)
