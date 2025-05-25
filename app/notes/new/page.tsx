@@ -45,29 +45,37 @@ import { useNotification } from "@/components/notification-provider"
 import { documentTemplates } from "@/lib/mock-data"
 import RichTextEditor from "@/components/rich-text-editor"
 
+interface Attachment {
+  id: number
+  name: string
+  type: string
+  size: string
+  uploadDate: string
+}
+
 export default function NewNotePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { addNotification } = useNotification()
-  const fileInputRef = useRef(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Get mode from URL query parameter (default to "dump")
   const initialMode = searchParams?.get("mode") || "dump"
   const initialCategory = searchParams?.get("category") || ""
   const initialTag = searchParams?.get("tag") || ""
 
-  const [mode, setMode] = useState(initialMode)
+  const [mode, setMode] = useState<string>(initialMode)
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
   const [richContent, setRichContent] = useState("<p>Start typing your document here...</p>")
-  const [category, setCategory] = useState(initialCategory)
-  const [tags, setTags] = useState(initialTag ? [initialTag] : [])
+  const [category, setCategory] = useState<string>(initialCategory)
+  const [tags, setTags] = useState<string[]>(initialTag ? [initialTag] : [])
   const [newTag, setNewTag] = useState("")
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
-  const [selectedTemplate, setSelectedTemplate] = useState(null)
+  const [selectedTemplate, setSelectedTemplate] = useState<string>("")
   const [previewMode, setPreviewMode] = useState(false)
-  const [attachments, setAttachments] = useState([])
+  const [attachments, setAttachments] = useState<Attachment[]>([])
   const [mounted, setMounted] = useState(false)
   const [imageDialogOpen, setImageDialogOpen] = useState(false)
   const [imageUrl, setImageUrl] = useState("")
@@ -104,14 +112,14 @@ export default function NewNotePage() {
   }
 
   // Remove a tag
-  const removeTag = (tagToRemove) => {
+  const removeTag = (tagToRemove: string) => {
     setTags(tags.filter((tag) => tag !== tagToRemove))
   }
 
   // Mock function to upload attachment
   const uploadAttachment = () => {
     // Mock file upload
-    const mockFile = {
+    const mockFile: Attachment = {
       id: Date.now(),
       name: "document.pdf",
       type: "pdf",
@@ -220,7 +228,7 @@ export default function NewNotePage() {
   }
 
   // Simple markdown preview renderer
-  const renderMarkdown = (text) => {
+  const renderMarkdown = (text: string) => {
     if (!text) return ""
 
     // Replace headings
@@ -246,7 +254,7 @@ export default function NewNotePage() {
     // Replace paragraphs
     html = html
       .split("\n\n")
-      .map((p) => {
+      .map((p: string) => {
         if (!p.startsWith("<h") && !p.startsWith("<li") && p.trim() !== "") {
           return `<p class="mb-4">${p}</p>`
         }
@@ -277,187 +285,80 @@ export default function NewNotePage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-4xl">
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={() => router.back()}>
-            <ArrowLeft size={18} />
-          </Button>
-          <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-            {mode === "dump" ? "New Idea" : "New Document"}
-          </h1>
-        </div>
-        <div className="flex items-center gap-2">
-          {mode === "dump" && (
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setPreviewMode(!previewMode)}
-              className={previewMode ? "bg-gray-100 dark:bg-gray-800" : ""}
-            >
-              {previewMode ? <EyeOff size={18} /> : <Eye size={18} />}
-            </Button>
-          )}
-          <Button onClick={saveNote} className="flex items-center gap-2">
-            <Save size={16} />
-            Save
-          </Button>
-        </div>
-      </div>
-
-      <Tabs value={mode} onValueChange={setMode} className="mb-6">
-        <TabsList>
-          <TabsTrigger value="dump" className="flex items-center gap-2">
-            <Lightbulb size={16} />
-            Idea Dumping Mode
-          </TabsTrigger>
-          <TabsTrigger value="doc" className="flex items-center gap-2">
-            <FileEdit size={16} />
-            Document Processing Mode
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
-
-      <Card>
-        <CardContent className="p-6">
-          {mode === "doc" && (
-            <div className="mb-4">
-              <div className="flex justify-between items-center mb-2">
-                <Label htmlFor="doc-title" className="text-sm font-medium">
-                  Document Title
-                </Label>
-                {!previewMode && (
-                  <Button variant="outline" size="sm" onClick={() => setTemplateDialogOpen(true)}>
-                    Use Template
-                  </Button>
-                )}
-              </div>
+    <div className="flex flex-col h-screen">
+      {/* Ribbon-like header */}
+      <div className="border-b dark:border-gray-700 bg-white dark:bg-gray-900">
+        <div className="container mx-auto px-4">
+          {/* Top row with title and actions */}
+          <div className="flex justify-between items-center h-14">
+            <div className="flex items-center gap-2 flex-1">
+              <Button variant="ghost" size="icon" onClick={() => router.back()}>
+                <ArrowLeft size={18} />
+              </Button>
               <Input
-                id="doc-title"
-                placeholder="Enter document title..."
+                placeholder={mode === "dump" ? "Untitled Idea" : "Untitled Document"}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="mb-2"
+                className="text-xl font-bold h-10 border-none shadow-none focus-visible:ring-0 bg-transparent px-2"
               />
             </div>
-          )}
-
-          {mode === "dump" && previewMode ? (
-            <div
-              className="min-h-[300px] border rounded-md p-4 dark:border-gray-700 prose dark:prose-invert max-w-none"
-              dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
-            />
-          ) : mode === "dump" ? (
-            <div>
-              <Textarea
-                placeholder={
-                  "# Note Title (optional)\n\nDump your thoughts here...\n- Use simple markdown\n- Add lists\n- Include links"
-                }
-                className="min-h-[300px] resize-none font-mono text-sm"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-              />
-              <div className="flex justify-end mt-2">
+            <div className="flex items-center gap-2">
+              {mode === "dump" && (
                 <Button
                   variant="outline"
-                  size="sm"
-                  className="flex items-center gap-1"
-                  onClick={() => setImageDialogOpen(true)}
+                  size="icon"
+                  onClick={() => setPreviewMode(!previewMode)}
+                  className={previewMode ? "bg-gray-100 dark:bg-gray-800" : ""}
                 >
-                  <ImageIcon size={16} />
-                  Insert Image
+                  {previewMode ? <EyeOff size={18} /> : <Eye size={18} />}
                 </Button>
-              </div>
+              )}
+              <Button onClick={saveNote} className="flex items-center gap-2">
+                <Save size={16} />
+                Save
+              </Button>
             </div>
-          ) : (
-            <div>
-              {/* Rich Text Editor Toolbar */}
-              <div className="flex flex-wrap gap-1 mb-2 p-2 border rounded-md dark:border-gray-700">
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <Bold size={16} />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <Italic size={16} />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <Underline size={16} />
-                </Button>
-                <div className="w-px h-8 bg-gray-200 dark:bg-gray-700 mx-1"></div>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <Heading1 size={16} />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <Heading2 size={16} />
-                </Button>
-                <div className="w-px h-8 bg-gray-200 dark:bg-gray-700 mx-1"></div>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <List size={16} />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <ListOrdered size={16} />
-                </Button>
-                <div className="w-px h-8 bg-gray-200 dark:bg-gray-700 mx-1"></div>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <AlignLeft size={16} />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <AlignCenter size={16} />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <AlignRight size={16} />
-                </Button>
-                <div className="w-px h-8 bg-gray-200 dark:bg-gray-700 mx-1"></div>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setImageDialogOpen(true)}>
-                  <ImageIcon size={16} />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <LinkIcon size={16} />
-                </Button>
-              </div>
+          </div>
 
-              {/* Rich Text Editor Content Area */}
-              <RichTextEditor initialContent={richContent} onChange={setRichContent} />
-            </div>
-          )}
+          {/* Mode tabs */}
+          <Tabs value={mode} onValueChange={setMode} className="mb-0">
+            <TabsList className="w-full justify-start">
+              <TabsTrigger value="dump" className="flex items-center gap-2">
+                <Lightbulb size={16} />
+                Idea Dumping Mode
+              </TabsTrigger>
+              <TabsTrigger value="doc" className="flex items-center gap-2">
+                <FileEdit size={16} />
+                Document Processing Mode
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
 
+          {/* Metadata row */}
           {!previewMode && (
-            <div className="mt-6">
-              <div className="flex flex-col sm:flex-row gap-4 mb-4">
-                <div className="flex-1">
-                  <Label className="text-sm font-medium mb-1 block">Category</Label>
-                  <Select value={category} onValueChange={setCategory}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="AI Research">AI Research</SelectItem>
-                      <SelectItem value="Math Notes">Math Notes</SelectItem>
-                      <SelectItem value="Group Project">Group Project</SelectItem>
-                      <SelectItem value="Physics Notes">Physics Notes</SelectItem>
-                      <SelectItem value="Biology">Biology</SelectItem>
-                      <SelectItem value="Computer Science">Computer Science</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex-1">
-                  <Label className="text-sm font-medium mb-1 block">Attachments</Label>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      className="w-full flex items-center gap-2"
-                      onClick={() => setUploadDialogOpen(true)}
-                    >
-                      <Paperclip size={16} />
-                      {attachments.length > 0 ? `${attachments.length} Attached` : "Add Attachment"}
-                    </Button>
-                  </div>
-                </div>
+            <div className="flex items-center gap-4 py-2 border-t dark:border-gray-700">
+              {/* Category */}
+              <div className="flex items-center gap-2">
+                <Label className="text-sm font-medium whitespace-nowrap">Category:</Label>
+                <Select value={category} onValueChange={setCategory}>
+                  <SelectTrigger className="h-8 w-[140px]">
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="AI Research">AI Research</SelectItem>
+                    <SelectItem value="Math Notes">Math Notes</SelectItem>
+                    <SelectItem value="Group Project">Group Project</SelectItem>
+                    <SelectItem value="Physics Notes">Physics Notes</SelectItem>
+                    <SelectItem value="Biology">Biology</SelectItem>
+                    <SelectItem value="Computer Science">Computer Science</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
-              <div>
-                <Label className="text-sm font-medium mb-1 block">Tags</Label>
-                <div className="flex flex-wrap gap-1 mb-2">
+              {/* Tags */}
+              <div className="flex items-center gap-2 flex-1">
+                <Label className="text-sm font-medium whitespace-nowrap">Tags:</Label>
+                <div className="flex flex-wrap items-center gap-1">
                   {tags.map((tag, index) => (
                     <Badge key={index} variant="secondary" className="flex items-center gap-1">
                       {tag}
@@ -466,39 +367,74 @@ export default function NewNotePage() {
                       </Button>
                     </Badge>
                   ))}
-                </div>
-                <div className="flex gap-2">
-                  <Input
-                    type="text"
-                    placeholder="Add tags..."
-                    value={newTag}
-                    onChange={(e) => setNewTag(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && addTag()}
-                    className="text-sm"
-                  />
-                  <Button variant="outline" size="sm" onClick={addTag}>
-                    <Tag size={14} className="mr-1" /> Add Tag
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Input
+                      type="text"
+                      placeholder="Add tag..."
+                      value={newTag}
+                      onChange={(e) => setNewTag(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && addTag()}
+                      className="h-8 w-[120px] text-sm"
+                    />
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={addTag}>
+                      <Tag size={14} />
+                    </Button>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
 
-          {previewMode && attachments.length > 0 && (
-            <div className="mt-4 border-t pt-4 dark:border-gray-700">
-              <h3 className="text-sm font-medium mb-2">Attachments</h3>
-              <div className="flex flex-wrap gap-2">
-                {attachments.map((file) => (
-                  <Badge key={file.id} variant="outline" className="flex items-center gap-1 py-1 px-3">
-                    <Paperclip size={12} />
-                    {file.name}
-                  </Badge>
-                ))}
+              {/* Attachments */}
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2"
+                  onClick={() => setUploadDialogOpen(true)}
+                >
+                  <Paperclip size={16} />
+                  {attachments.length > 0 ? `${attachments.length} Attached` : "Add Attachment"}
+                </Button>
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
+
+      {/* Full screen document area */}
+      <div className="flex-1 overflow-auto bg-white dark:bg-gray-900">
+        {previewMode ? (
+          <div
+            className="min-h-[calc(100vh-12rem)] prose dark:prose-invert max-w-none px-8 py-6"
+            dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
+          />
+        ) : mode === "dump" ? (
+          <div className="h-full">
+            <Textarea
+              placeholder={
+                "# Note Title (optional)\n\nDump your thoughts here...\n- Use simple markdown\n- Add lists\n- Include links"
+              }
+              className="h-full resize-none font-mono text-sm px-8 py-6 border-none focus-visible:ring-0"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+            />
+            <div className="absolute bottom-4 right-4">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-1"
+                onClick={() => setImageDialogOpen(true)}
+              >
+                <ImageIcon size={16} />
+                Insert Image
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="h-full">
+            <RichTextEditor initialContent={richContent} onChange={setRichContent} />
+          </div>
+        )}
+      </div>
 
       {/* Template Dialog */}
       <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>

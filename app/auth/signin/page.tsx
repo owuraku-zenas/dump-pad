@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { signIn } from "next-auth/react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,11 +12,10 @@ import { GoogleIcon } from "@/components/icons/google"
 import Link from "next/link"
 import AuthLayout from "@/components/auth/AuthLayout"
 import PasswordInput from "@/components/auth/PasswordInput"
-import { signIn } from "next-auth/react"
 
-export default function SignUp() {
+export default function SignIn() {
   const router = useRouter()
-  const [name, setName] = useState("")
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
@@ -28,26 +28,22 @@ export default function SignUp() {
     setError("")
 
     try {
-      const response = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name,
-          email,
-          password,
-        }),
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
       })
 
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.message || "Something went wrong")
+      if (!result?.ok) {
+        setError(result?.error || "Invalid email or password")
+        return
       }
 
-      router.push(`/auth/verify-request?email=${encodeURIComponent(email)}`)
+      const callbackUrl = searchParams.get("callbackUrl") || "/"
+      router.push(callbackUrl)
     } catch (error) {
-      setError(error instanceof Error ? error.message : "An error occurred")
+      console.error("Sign in error:", error)
+      setError("An error occurred. Please try again.")
     } finally {
       setIsLoading(false)
     }
@@ -57,7 +53,7 @@ export default function SignUp() {
     setIsSocialLoading(provider)
     try {
       await signIn(provider, {
-        callbackUrl: "/auth/new-user",
+        callbackUrl: searchParams.get("callbackUrl") || "/",
       })
     } catch (error) {
       setError(`Failed to sign in with ${provider}`)
@@ -66,18 +62,28 @@ export default function SignUp() {
     }
   }
 
+  const showForgotPasswordMessage = searchParams.get("forgot") === "true"
+
   return (
     <AuthLayout
-      title="Create Account"
-      subtitle="Join us and start organizing your thoughts"
+      title="Welcome Back"
+      subtitle="Sign in to your account to continue"
     >
       <div className="space-y-6">
         <div className="space-y-2 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">Sign Up</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Sign In</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Create your account to get started
+            Enter your credentials to access your account
           </p>
         </div>
+
+        {showForgotPasswordMessage && (
+          <Alert>
+            <AlertDescription>
+              Password reset instructions have been sent to your email.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {error && (
           <Alert variant="destructive">
@@ -86,18 +92,6 @@ export default function SignUp() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
-            <Input
-              id="name"
-              type="text"
-              placeholder="John Doe"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              autoComplete="name"
-            />
-          </div>
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -116,15 +110,16 @@ export default function SignUp() {
             value={password}
             onChange={setPassword}
             required
+            showForgotPassword
           />
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Creating account...
+                Signing in...
               </>
             ) : (
-              "Create Account"
+              "Sign In"
             )}
           </Button>
         </form>
@@ -170,15 +165,15 @@ export default function SignUp() {
         </div>
 
         <p className="text-center text-sm text-gray-500 dark:text-gray-400">
-          Already have an account?{" "}
+          Don't have an account?{" "}
           <Link
-            href="/auth/signin"
+            href="/auth/signup"
             className="text-blue-600 hover:text-blue-500 dark:text-blue-400"
           >
-            Sign in
+            Sign up
           </Link>
         </p>
       </div>
     </AuthLayout>
   )
-}
+} 
