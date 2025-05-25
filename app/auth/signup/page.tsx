@@ -6,11 +6,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Github } from "lucide-react"
+import { Github, Loader2 } from "lucide-react"
 import { GoogleIcon } from "@/components/icons/google"
 import Link from "next/link"
 import AuthLayout from "@/components/auth/AuthLayout"
 import PasswordInput from "@/components/auth/PasswordInput"
+import { signIn } from "next-auth/react"
 
 export default function SignUp() {
   const router = useRouter()
@@ -19,6 +20,7 @@ export default function SignUp() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [isSocialLoading, setIsSocialLoading] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -51,6 +53,19 @@ export default function SignUp() {
     }
   }
 
+  const handleSocialSignIn = async (provider: string) => {
+    setIsSocialLoading(provider)
+    try {
+      await signIn(provider, {
+        callbackUrl: "/",
+      })
+    } catch (error) {
+      setError(`Failed to sign in with ${provider}`)
+    } finally {
+      setIsSocialLoading(null)
+    }
+  }
+
   return (
     <AuthLayout
       title="Create Account"
@@ -80,6 +95,7 @@ export default function SignUp() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
+              autoComplete="name"
             />
           </div>
           <div className="space-y-2">
@@ -91,6 +107,7 @@ export default function SignUp() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              autoComplete="email"
             />
           </div>
           <PasswordInput
@@ -101,7 +118,14 @@ export default function SignUp() {
             required
           />
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Creating account..." : "Create Account"}
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Creating account...
+              </>
+            ) : (
+              "Create Account"
+            )}
           </Button>
         </form>
 
@@ -117,12 +141,30 @@ export default function SignUp() {
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <Button variant="outline" type="button" disabled={isLoading}>
-            <Github className="mr-2 h-4 w-4" />
+          <Button
+            variant="outline"
+            type="button"
+            disabled={!!isSocialLoading}
+            onClick={() => handleSocialSignIn("github")}
+          >
+            {isSocialLoading === "github" ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Github className="mr-2 h-4 w-4" />
+            )}
             Github
           </Button>
-          <Button variant="outline" type="button" disabled={isLoading}>
-            <GoogleIcon className="mr-2 h-4 w-4" />
+          <Button
+            variant="outline"
+            type="button"
+            disabled={!!isSocialLoading}
+            onClick={() => handleSocialSignIn("google")}
+          >
+            {isSocialLoading === "google" ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <GoogleIcon className="mr-2 h-4 w-4" />
+            )}
             Google
           </Button>
         </div>
