@@ -86,7 +86,10 @@ export default function ProfilePage() {
         throw new Error(data.error || "Something went wrong")
       }
 
-      // Update the session with new data
+      // Update local state with new data
+      setUserData(data)
+
+      // Update the session with new data and wait for it to complete
       await update({
         ...session,
         user: {
@@ -97,9 +100,9 @@ export default function ProfilePage() {
         },
       })
 
-      // Update local state with new data
-      setUserData(data)
-
+      // Wait a moment for the session update to propagate
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
       // Force a page refresh to ensure all components get the new session data
       router.refresh()
       
