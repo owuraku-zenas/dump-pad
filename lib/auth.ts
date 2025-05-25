@@ -5,11 +5,13 @@ import bcrypt from "bcryptjs"
 import CredentialsProvider from "next-auth/providers/credentials"
 import GithubProvider from "next-auth/providers/github"
 import GoogleProvider from "next-auth/providers/google"
+import { Adapter, AdapterUser, AdapterAccount } from "next-auth/adapters"
+import { JWT } from "next-auth/jwt"
 
 // Custom adapter to handle account linking
-const customAdapter = {
+const customAdapter: Adapter = {
   ...PrismaAdapter(db),
-  async getUserByAccount({ provider, providerAccountId }) {
+  async getUserByAccount({ provider, providerAccountId }: { provider: string; providerAccountId: string }) {
     try {
       // First try to find the account
       const account = await db.account.findFirst({
@@ -27,13 +29,13 @@ const customAdapter = {
       }
 
       // If we found an account, return the associated user
-      return account.user
+      return account.user as AdapterUser
     } catch (error) {
       console.error("Error in getUserByAccount:", error)
       return null
     }
   },
-  async linkAccount(account) {
+  async linkAccount(account: AdapterAccount) {
     try {
       // Check if this GitHub account is already linked
       const existingAccount = await db.account.findFirst({
@@ -45,7 +47,7 @@ const customAdapter = {
 
       if (existingAccount) {
         // If account exists, update it
-        return await db.account.update({
+        await db.account.update({
           where: { id: existingAccount.id },
           data: {
             userId: account.userId,
@@ -54,10 +56,11 @@ const customAdapter = {
             scope: account.scope,
           },
         })
+        return
       }
 
       // If no existing account, create new one
-      return await db.account.create({
+      await db.account.create({
         data: account,
       })
     } catch (error) {
@@ -86,9 +89,9 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
       clientId: process.env.GITHUB_ID!,
       clientSecret: process.env.GITHUB_SECRET!,
       profile(profile) {
-        console.log("GitHub Profile Data:", JSON.stringify(profile, null, 2))
         return {
           id: profile.id.toString(),
+          name: profile.name || profile.login,
           email: profile.email,
           image: profile.avatar_url,
         }
@@ -98,9 +101,9 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       profile(profile) {
-        console.log("Google Profile Data:", JSON.stringify(profile, null, 2))
         return {
           id: profile.sub,
+          name: profile.name,
           email: profile.email,
           image: profile.picture,
         }
@@ -112,8 +115,10 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" }
       },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
+      async authorize(credentials: Partial<Record<"email" | "password", unknown>>) {
+        if (!credentials?.email || !credentials?.password || 
+            typeof credentials.email !== 'string' || 
+            typeof credentials.password !== 'string') {
           throw new Error("Invalid credentials")
         }
 
@@ -147,12 +152,6 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
   ],
   callbacks: {
     async signIn({ user, account, profile }) {
-      console.log("SignIn Callback Data:", {
-        user: JSON.stringify(user, null, 2),
-        account: JSON.stringify(account, null, 2),
-        profile: JSON.stringify(profile, null, 2)
-      })
-      
       if (account?.provider === "github" || account?.provider === "google") {
         try {
           // Check for existing user with the same email
@@ -162,15 +161,14 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
           })
 
           if (existingUser) {
-            // Only update image if needed
-            if (!existingUser.image) {
-              await db.user.update({
-                where: { id: existingUser.id },
-                data: {
-                  image: user.image,
-                }
-              })
-            }
+            // Update user data if needed
+            await db.user.update({
+              where: { id: existingUser.id },
+              data: {
+                name: user.name || existingUser.name,
+                image: user.image || existingUser.image,
+              }
+            })
             return true
           }
         } catch (error) {
@@ -182,10 +180,10 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
     },
     async session({ token, session }) {
       if (token) {
-        session.user.id = token.id
-        session.user.name = token.name
-        session.user.email = token.email
-        session.user.image = token.picture
+        session.user.id = token.id as string
+        session.user.name = token.name as string
+        session.user.email = token.email as string
+        session.user.image = token.picture as string
       }
       return session
     },
@@ -200,7 +198,7 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
       // Always fetch fresh data from the database
       const dbUser = await db.user.findFirst({
         where: {
-          email: token.email,
+          email: token.email as string,
         },
         select: {
           id: true,
