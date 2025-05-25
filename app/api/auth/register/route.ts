@@ -2,7 +2,8 @@ import { NextResponse } from "next/server"
 import { hash } from "bcryptjs"
 import { db } from "@/lib/db"
 import { z } from "zod"
-import { signIn } from "next-auth/react"
+import { createTransport } from "nodemailer"
+import { sign } from "jsonwebtoken"
 
 // Input validation schema
 const registerSchema = z.object({
@@ -43,12 +44,56 @@ export async function POST(req: Request) {
     // Remove password from response
     const { password: _, ...userWithoutPassword } = user
 
-    // Send verification email
-    await signIn("email", {
-      email,
-      redirect: false,
-      callbackUrl: "/auth/new-user",
+    // Generate verification token
+    const verificationToken = sign(
+      { email: user.email },
+      process.env.NEXTAUTH_SECRET!,
+      { expiresIn: "24h" }
+    )
+
+    // Create verification token in database
+    await db.verificationToken.create({
+      data: {
+        identifier: user.email!,
+        token: verificationToken,
+        expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+      },
     })
+
+    // Send verification email
+    const transporter = createTransport({
+      host: process.env.EMAIL_SERVER_HOST,
+      port: Number(process.env.EMAIL_SERVER_PORT),
+      auth: {
+        user: process.env.EMAIL_SERVER_USER,
+        pass: process.env.EMAIL_SERVER_PASSWORD,
+      },
+    })
+
+    const verificationUrl = `${process.env.NEXTAUTH_URL}/auth/verify?token=${verificationToken}`
+
+    try {
+      console.log('Attempting to send verification email to:', user.email)
+      console.log('Using SMTP config:', {
+        host: process.env.EMAIL_SERVER_HOST,
+        port: process.env.EMAIL_SERVER_PORT,
+        user: process.env.EMAIL_SERVER_USER,
+      })
+
+      await transporter.sendMail({
+        from: process.env.EMAIL_FROM,
+        to: user.email!,
+        subject: "Verify your email address",
+        html: `
+          <p>Please click the link below to verify your email address:</p>
+          <a href="${verificationUrl}">${verificationUrl}</a>
+        `,
+      })
+      console.log('Verification email sent successfully')
+    } catch (emailError) {
+      console.error('Failed to send verification email:', emailError)
+      throw emailError
+    }
 
     return NextResponse.json(
       {
