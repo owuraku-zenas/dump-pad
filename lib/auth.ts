@@ -122,30 +122,35 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
           throw new Error("Invalid credentials")
         }
 
-        const user = await db.user.findUnique({
-          where: {
-            email: credentials.email
+        try {
+          const user = await db.user.findUnique({
+            where: {
+              email: credentials.email
+            }
+          })
+
+          if (!user || !user?.password) {
+            throw new Error("Invalid credentials")
           }
-        })
 
-        if (!user || !user?.password) {
+          const isCorrectPassword = await bcrypt.compare(
+            credentials.password,
+            user.password
+          )
+
+          if (!isCorrectPassword) {
+            throw new Error("Invalid credentials")
+          }
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            image: user.image,
+          }
+        } catch (error) {
+          console.error("Error in credentials authorize:", error)
           throw new Error("Invalid credentials")
-        }
-
-        const isCorrectPassword = await bcrypt.compare(
-          credentials.password,
-          user.password
-        )
-
-        if (!isCorrectPassword) {
-          throw new Error("Invalid credentials")
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          image: user.image,
         }
       }
     })

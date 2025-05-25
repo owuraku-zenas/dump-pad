@@ -34,14 +34,15 @@ export default function SignIn() {
         redirect: false,
       })
 
-      if (result?.error) {
-        setError("Invalid email or password")
+      if (!result?.ok) {
+        setError(result?.error || "Invalid email or password")
         return
       }
 
       const callbackUrl = searchParams.get("callbackUrl") || "/"
       router.push(callbackUrl)
     } catch (error) {
+      console.error("Sign in error:", error)
       setError("An error occurred. Please try again.")
     } finally {
       setIsLoading(false)
