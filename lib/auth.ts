@@ -145,7 +145,7 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
         if (!credentials?.email || !credentials?.password || 
             typeof credentials.email !== 'string' || 
             typeof credentials.password !== 'string') {
-          throw new Error("Invalid credentials")
+          throw new Error("Please provide both email and password")
         }
 
         try {
@@ -155,8 +155,16 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
             }
           })
 
-          if (!user || !user?.password) {
-            throw new Error("Invalid credentials")
+          if (!user) {
+            throw new Error("No account found with this email")
+          }
+
+          if (!user.password) {
+            throw new Error("This account was created with a social login")
+          }
+
+          if (!user.emailVerified) {
+            throw new Error("Please verify your email before signing in")
           }
 
           const isCorrectPassword = await bcrypt.compare(
@@ -165,7 +173,7 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
           )
 
           if (!isCorrectPassword) {
-            throw new Error("Invalid credentials")
+            throw new Error("Incorrect password")
           }
 
           return {
@@ -176,7 +184,7 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
           }
         } catch (error) {
           console.error("Error in credentials authorize:", error)
-          throw new Error("Invalid credentials")
+          throw error
         }
       }
     })

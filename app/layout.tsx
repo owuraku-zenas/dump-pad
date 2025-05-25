@@ -6,6 +6,7 @@ import { NotificationProvider } from "@/components/notification-provider"
 import { ThemeProvider } from "@/components/theme-provider"
 import Sidebar from "@/components/sidebar"
 import Header from "@/components/header"
+import { Toaster } from "@/components/ui/toaster"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -32,6 +33,7 @@ export default function RootLayout({
                   <main className="flex-1 overflow-auto">{children}</main>
                 </div>
               </div>
+              <Toaster />
             </NotificationProvider>
           </ThemeProvider>
         </Providers>
