@@ -17,7 +17,10 @@ export default function VerifyRequest() {
   }, [searchParams])
 
   return (
-    <AuthLayout>
+    <AuthLayout
+      title="Check your email"
+      subtitle="We sent a verification link to your email"
+    >
       <div className="space-y-6">
         <div className="space-y-2 text-center">
           <h1 className="text-2xl font-semibold tracking-tight">

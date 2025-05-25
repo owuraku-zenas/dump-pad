@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { hash } from "bcryptjs"
 import { db } from "@/lib/db"
 import { z } from "zod"
+import { signIn } from "next-auth/react"
 
 // Input validation schema
 const registerSchema = z.object({
@@ -42,10 +43,17 @@ export async function POST(req: Request) {
     // Remove password from response
     const { password: _, ...userWithoutPassword } = user
 
+    // Send verification email
+    await signIn("email", {
+      email,
+      redirect: false,
+      callbackUrl: "/auth/new-user",
+    })
+
     return NextResponse.json(
       {
         user: userWithoutPassword,
-        message: "User created successfully",
+        message: "Verification email sent",
       },
       { status: 201 }
     )

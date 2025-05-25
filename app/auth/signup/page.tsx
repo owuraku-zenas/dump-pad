@@ -45,7 +45,7 @@ export default function SignUp() {
         throw new Error(data.message || "Something went wrong")
       }
 
-      router.push("/auth/signin?registered=true")
+      router.push(`/auth/verify-request?email=${encodeURIComponent(email)}`)
     } catch (error) {
       setError(error instanceof Error ? error.message : "An error occurred")
     } finally {
@@ -57,7 +57,7 @@ export default function SignUp() {
     setIsSocialLoading(provider)
     try {
       await signIn(provider, {
-        callbackUrl: "/",
+        callbackUrl: "/auth/new-user",
       })
     } catch (error) {
       setError(`Failed to sign in with ${provider}`)

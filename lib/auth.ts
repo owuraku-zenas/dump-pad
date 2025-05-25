@@ -5,8 +5,10 @@ import bcrypt from "bcryptjs"
 import CredentialsProvider from "next-auth/providers/credentials"
 import GithubProvider from "next-auth/providers/github"
 import GoogleProvider from "next-auth/providers/google"
+import EmailProvider from "next-auth/providers/email"
 import { Adapter, AdapterUser, AdapterAccount } from "next-auth/adapters"
 import { JWT } from "next-auth/jwt"
+import { createTransport } from "nodemailer"
 
 // Custom adapter to handle account linking
 const customAdapter: Adapter = {
@@ -83,8 +85,32 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
   pages: {
     signIn: "/auth/signin",
     error: "/auth/error",
+    verifyRequest: "/auth/verify-request",
   },
   providers: [
+    EmailProvider({
+      server: {
+        host: process.env.EMAIL_SERVER_HOST,
+        port: Number(process.env.EMAIL_SERVER_PORT),
+        auth: {
+          user: process.env.EMAIL_SERVER_USER,
+          pass: process.env.EMAIL_SERVER_PASSWORD,
+        },
+      },
+      from: process.env.EMAIL_FROM,
+      maxAge: 24 * 60 * 60, // 24 hours
+      sendVerificationRequest: async ({ identifier: email, url, provider: { server, from } }) => {
+        const { host } = new URL(url)
+        const transport = createTransport(server)
+        await transport.sendMail({
+          to: email,
+          from,
+          subject: `Sign in to ${host}`,
+          text: text({ url, host }),
+          html: html({ url, host, email }),
+        })
+      },
+    }),
     GithubProvider({
       clientId: process.env.GITHUB_ID!,
       clientSecret: process.env.GITHUB_SECRET!,
@@ -176,6 +202,9 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
             })
             return true
           }
+
+          // For new users, redirect to new-user page
+          return "/auth/new-user"
         } catch (error) {
           console.error("Error in signIn callback:", error)
           return false
@@ -223,4 +252,50 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
       return token
     }
   }
-}) 
+})
+
+function html({ url, host, email }: { url: string; host: string; email: string }) {
+  const escapedEmail = `${email.replace(/\./g, "&#8203;.")}`
+  const escapedHost = `${host.replace(/\./g, "&#8203;.")}`
+  const newUserUrl = url.replace("/api/auth/callback", "/auth/new-user")
+  
+  return `
+    <body style="background: #f9f9f9;">
+      <table width="100%" border="0" cellspacing="20" cellpadding="0"
+        style="background: #fff; max-width: 600px; margin: auto; border-radius: 10px;">
+        <tr>
+          <td align="center"
+            style="padding: 10px 0px; font-size: 22px; font-family: Helvetica, Arial, sans-serif; color: #444;">
+            Sign in to <strong>${escapedHost}</strong>
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="padding: 20px 0;">
+            <table border="0" cellspacing="0" cellpadding="0">
+              <tr>
+                <td align="center" style="border-radius: 5px;" bgcolor="#346df1">
+                  <a href="${newUserUrl}"
+                    target="_blank"
+                    style="font-size: 18px; font-family: Helvetica, Arial, sans-serif; color: #fff; text-decoration: none; border-radius: 5px; padding: 10px 20px; border: 1px solid #346df1; display: inline-block; font-weight: bold;">
+                    Verify Email Address
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td align="center"
+            style="padding: 0px 0px 10px 0px; font-size: 16px; line-height: 22px; font-family: Helvetica, Arial, sans-serif; color: #444;">
+            If you did not request this email you can safely ignore it.
+          </td>
+        </tr>
+      </table>
+    </body>
+  `
+}
+
+function text({ url, host }: { url: string; host: string }) {
+  const newUserUrl = url.replace("/api/auth/callback", "/auth/new-user")
+  return `Sign in to ${host}\n\nClick here to verify your email address: ${newUserUrl}\n\n`
+} 
