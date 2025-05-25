@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Bell, Search, User, LogOut, Settings } from "lucide-react"
+import { Bell, Search, User, Settings } from "lucide-react"
 import { useNotification } from "@/components/notification-provider"
 import { ThemeToggle } from "@/components/theme-toggle"
+import LogoutButton from "@/components/auth/LogoutButton"
 import Link from "next/link"
 
 export default function Header() {
@@ -124,13 +125,7 @@ export default function Header() {
                 <Settings size={16} className="mr-2" />
                 Settings
               </Button>
-              <Button
-                variant="ghost"
-                className="justify-start text-red-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20"
-              >
-                <LogOut size={16} className="mr-2" />
-                Logout
-              </Button>
+              <LogoutButton />
             </div>
           </PopoverContent>
         </Popover>

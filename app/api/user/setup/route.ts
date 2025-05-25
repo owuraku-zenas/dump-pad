@@ -1,0 +1,53 @@
+import { NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import prisma from "@/lib/prisma"
+
+export async function POST(req: Request) {
+  try {
+    const session = await getServerSession(authOptions)
+
+    if (!session?.user?.email) {
+      return new NextResponse("Unauthorized", { status: 401 })
+    }
+
+    const { name } = await req.json()
+
+    if (!name) {
+      return new NextResponse("Name is required", { status: 400 })
+    }
+
+    // Check if user already has a name
+    const existingUser = await prisma.user.findUnique({
+      where: {
+        email: session.user.email,
+      },
+      select: {
+        name: true,
+      },
+    })
+
+    if (existingUser?.name) {
+      // If user already has a name, just redirect them
+      return NextResponse.json({ message: "User already set up" })
+    }
+
+    // Update the user's name
+    const user = await prisma.user.update({
+      where: {
+        email: session.user.email,
+      },
+      data: {
+        name,
+      },
+    })
+
+    return NextResponse.json(user)
+  } catch (error) {
+    console.error("[USER_SETUP]", error)
+    return new NextResponse(
+      error instanceof Error ? error.message : "Internal error",
+      { status: 500 }
+    )
+  }
+} 

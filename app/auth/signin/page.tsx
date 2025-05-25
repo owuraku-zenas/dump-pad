@@ -1,24 +1,26 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { signIn } from "next-auth/react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Github } from "lucide-react"
+import { Github, Loader2 } from "lucide-react"
 import { GoogleIcon } from "@/components/icons/google"
 import Link from "next/link"
 import AuthLayout from "@/components/auth/AuthLayout"
 import PasswordInput from "@/components/auth/PasswordInput"
 
-export default function SignUp() {
+export default function SignIn() {
   const router = useRouter()
-  const [name, setName] = useState("")
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [isSocialLoading, setIsSocialLoading] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -26,43 +28,61 @@ export default function SignUp() {
     setError("")
 
     try {
-      const response = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name,
-          email,
-          password,
-        }),
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
       })
 
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.message || "Something went wrong")
+      if (result?.error) {
+        setError("Invalid email or password")
+        return
       }
 
-      router.push("/auth/signin?registered=true")
+      const callbackUrl = searchParams.get("callbackUrl") || "/"
+      router.push(callbackUrl)
     } catch (error) {
-      setError(error instanceof Error ? error.message : "An error occurred")
+      setError("An error occurred. Please try again.")
     } finally {
       setIsLoading(false)
     }
   }
 
+  const handleSocialSignIn = async (provider: string) => {
+    setIsSocialLoading(provider)
+    try {
+      await signIn(provider, {
+        callbackUrl: searchParams.get("callbackUrl") || "/",
+      })
+    } catch (error) {
+      setError(`Failed to sign in with ${provider}`)
+    } finally {
+      setIsSocialLoading(null)
+    }
+  }
+
+  const showForgotPasswordMessage = searchParams.get("forgot") === "true"
+
   return (
     <AuthLayout
-      title="Create Account"
-      subtitle="Join us and start organizing your thoughts"
+      title="Welcome Back"
+      subtitle="Sign in to your account to continue"
     >
       <div className="space-y-6">
         <div className="space-y-2 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">Sign Up</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Sign In</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Create your account to get started
+            Enter your credentials to access your account
           </p>
         </div>
+
+        {showForgotPasswordMessage && (
+          <Alert>
+            <AlertDescription>
+              Password reset instructions have been sent to your email.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {error && (
           <Alert variant="destructive">
@@ -72,17 +92,6 @@ export default function SignUp() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
-            <Input
-              id="name"
-              type="text"
-              placeholder="John Doe"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-          </div>
-          <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
               id="email"
@@ -91,6 +100,7 @@ export default function SignUp() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              autoComplete="email"
             />
           </div>
           <PasswordInput
@@ -99,9 +109,17 @@ export default function SignUp() {
             value={password}
             onChange={setPassword}
             required
+            showForgotPassword
           />
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Creating account..." : "Create Account"}
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Signing in...
+              </>
+            ) : (
+              "Sign In"
+            )}
           </Button>
         </form>
 
@@ -117,26 +135,44 @@ export default function SignUp() {
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <Button variant="outline" type="button" disabled={isLoading}>
-            <Github className="mr-2 h-4 w-4" />
+          <Button
+            variant="outline"
+            type="button"
+            disabled={!!isSocialLoading}
+            onClick={() => handleSocialSignIn("github")}
+          >
+            {isSocialLoading === "github" ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Github className="mr-2 h-4 w-4" />
+            )}
             Github
           </Button>
-          <Button variant="outline" type="button" disabled={isLoading}>
-            <GoogleIcon className="mr-2 h-4 w-4" />
+          <Button
+            variant="outline"
+            type="button"
+            disabled={!!isSocialLoading}
+            onClick={() => handleSocialSignIn("google")}
+          >
+            {isSocialLoading === "google" ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <GoogleIcon className="mr-2 h-4 w-4" />
+            )}
             Google
           </Button>
         </div>
 
         <p className="text-center text-sm text-gray-500 dark:text-gray-400">
-          Already have an account?{" "}
+          Don't have an account?{" "}
           <Link
-            href="/auth/signin"
+            href="/auth/signup"
             className="text-blue-600 hover:text-blue-500 dark:text-blue-400"
           >
-            Sign in
+            Sign up
           </Link>
         </p>
       </div>
     </AuthLayout>
   )
-}
+} 
