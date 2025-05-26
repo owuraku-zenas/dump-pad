@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 
 interface Category {
   id: string;
@@ -18,41 +19,61 @@ interface CreateCategoryInput {
 }
 
 interface UpdateCategoryInput {
-  name: string;
+  name?: string;
   color?: string;
 }
 
 export function useCategories() {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
+  const { data: session, status } = useSession();
+  const token = session?.user?.id;
 
   // Fetch all categories
   const { data: categories, isLoading } = useQuery<Category[]>({
-    queryKey: ["categories"],
+    queryKey: ["categories", token],
     queryFn: async () => {
-      const response = await fetch("/api/categories");
+      const response = await fetch("/api/categories", {
+        headers: {
+        },
+      });
+      
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to fetch categories");
+        try {
+          const errorBody = await response.json();
+          throw new Error(errorBody.error || errorBody.message || `Failed to fetch categories: ${response.status} ${response.statusText}`);
+        } catch (e) {
+          throw new Error(`Failed to fetch categories: ${response.status} ${response.statusText}`);
+        }
       }
+      
       return response.json();
     },
+    enabled: !!token,
+    onError: (err) => {
+      console.error("Error fetching categories:", err);
+      setError(err.message || "An unknown error occurred while fetching categories.");
+    }
   });
 
   // Create category mutation
   const createCategory = useMutation({
     mutationFn: async (input: CreateCategoryInput) => {
+      if (!token) throw new Error("Not authenticated");
       const response = await fetch("/api/categories", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
         },
         body: JSON.stringify(input),
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to create category");
+       if (!response.ok) {
+        try {
+          const errorBody = await response.json();
+          throw new Error(errorBody.error || errorBody.message || `Failed to create category: ${response.status} ${response.statusText}`);
+        } catch (e) {
+          throw new Error(`Failed to create category: ${response.status} ${response.statusText}`);
+        }
       }
 
       return response.json();
@@ -61,8 +82,9 @@ export function useCategories() {
       queryClient.invalidateQueries({ queryKey: ["categories"] });
       setError(null);
     },
-    onError: (error: Error) => {
-      setError(error.message);
+    onError: (err) => {
+      console.error("Error creating category:", err);
+      setError(err.message || "An unknown error occurred while creating category.");
     },
   });
 
@@ -75,17 +97,21 @@ export function useCategories() {
       id: string;
       input: UpdateCategoryInput;
     }) => {
+      if (!token) throw new Error("Not authenticated");
       const response = await fetch(`/api/categories/${id}`, {
         method: "PUT",
         headers: {
-          "Content-Type": "application/json",
         },
         body: JSON.stringify(input),
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to update category");
+       if (!response.ok) {
+        try {
+          const errorBody = await response.json();
+          throw new Error(errorBody.error || errorBody.message || `Failed to update category: ${response.status} ${response.statusText}`);
+        } catch (e) {
+          throw new Error(`Failed to update category: ${response.status} ${response.statusText}`);
+        }
       }
 
       return response.json();
@@ -94,21 +120,29 @@ export function useCategories() {
       queryClient.invalidateQueries({ queryKey: ["categories"] });
       setError(null);
     },
-    onError: (error: Error) => {
-      setError(error.message);
+    onError: (err) => {
+      console.error("Error updating category:", err);
+      setError(err.message || "An unknown error occurred while updating category.");
     },
   });
 
   // Delete category mutation
   const deleteCategory = useMutation({
     mutationFn: async (id: string) => {
+      if (!token) throw new Error("Not authenticated");
       const response = await fetch(`/api/categories/${id}`, {
         method: "DELETE",
+        headers: {
+        },
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to delete category");
+         try {
+          const errorBody = await response.json();
+          throw new Error(errorBody.error || errorBody.message || `Failed to delete category: ${response.status} ${response.statusText}`);
+        } catch (e) {
+          throw new Error(`Failed to delete category: ${response.status} ${response.statusText}`);
+        }
       }
 
       return response.json();
@@ -117,14 +151,15 @@ export function useCategories() {
       queryClient.invalidateQueries({ queryKey: ["categories"] });
       setError(null);
     },
-    onError: (error: Error) => {
-      setError(error.message);
+    onError: (err) => {
+      console.error("Error deleting category:", err);
+      setError(err.message || "An unknown error occurred while deleting category.");
     },
   });
 
   return {
     categories,
-    isLoading,
+    isLoading: isLoading || status === 'loading',
     error,
     createCategory: createCategory.mutate,
     updateCategory: updateCategory.mutate,
@@ -132,5 +167,6 @@ export function useCategories() {
     isCreating: createCategory.isPending,
     isUpdating: updateCategory.isPending,
     isDeleting: deleteCategory.isPending,
+    isAuthenticated: !!token,
   };
 } 

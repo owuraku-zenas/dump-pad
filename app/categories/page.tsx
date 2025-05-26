@@ -191,7 +191,7 @@ export default function CategoriesPage() {
           </p>
         </div>
         <div className="flex gap-2 mt-4 md:mt-0">
-          <Button onClick={openCreateDialog} className="flex items-center gap-2">
+          <Button onClick={openCreateDialog} className="flex items-center gap-2" disabled={isLoading}>
             <Plus size={16} />
             New Category
           </Button>
@@ -231,7 +231,7 @@ export default function CategoriesPage() {
               : "You don't have any categories yet. Create a new category to organize your notes."
             }
           </p>
-          <Button onClick={openCreateDialog} className="flex items-center gap-2">
+          <Button onClick={openCreateDialog} className="flex items-center gap-2" disabled={isLoading}>
             <Plus size={16} />
             Create New Category
           </Button>

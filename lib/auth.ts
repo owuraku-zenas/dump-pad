@@ -77,10 +77,57 @@ const customAdapter: Adapter = {
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   providers: [
+    CredentialsProvider({
+      name: "credentials",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" }
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          console.log("Missing credentials");
+          return null;
+        }
+
+        try {
+          const user = await prisma.user.findUnique({
+            where: { email: credentials.email }
+          });
+
+          if (!user) {
+            console.log("No user found");
+            return null;
+          }
+
+          const isPasswordValid = await bcrypt.compare(
+            credentials.password,
+            user.password || ""
+          );
+
+          if (!isPasswordValid) {
+            console.log("Invalid password");
+            return null;
+          }
+
+          return user;
+        } catch (error) {
+          console.error("Error in authorize:", error);
+          return null;
+        }
+      }
+    }),
+    GithubProvider({
+      clientId: process.env.GITHUB_ID!,
+      clientSecret: process.env.GITHUB_SECRET!,
+    }),
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    }),
     EmailProvider({
       server: {
         host: process.env.EMAIL_SERVER_HOST,
-        port: process.env.EMAIL_SERVER_PORT,
+        port: process.env.EMAIL_SERVER_PORT ? parseInt(process.env.EMAIL_SERVER_PORT) : undefined,
         auth: {
           user: process.env.EMAIL_SERVER_USER,
           pass: process.env.EMAIL_SERVER_PASSWORD,
@@ -88,17 +135,23 @@ export const authOptions: NextAuthOptions = {
       },
       from: process.env.EMAIL_FROM,
       sendVerificationRequest: async ({ identifier, url, provider }) => {
-        const { host } = new URL(url);
-        const transport = createTransport(provider.server);
-        const result = await transport.sendMail({
-          to: identifier,
-          subject: `Sign in to ${host}`,
-          text: `Click here to sign in to ${host}: ${url}`,
-          html: `<p>Click <a href="${url}">here</a> to sign in to ${host}</p>`,
-        });
-        const failed = result.rejected.concat(result.pending).filter(Boolean);
-        if (failed.length) {
-          throw new Error(`Email(s) (${failed.join(", ")}) could not be sent`);
+        try {
+          const { host } = new URL(url);
+          const transport = createTransport(provider.server);
+          const result = await transport.sendMail({
+            to: identifier,
+            subject: `Sign in to ${host}`,
+            text: `Click here to sign in to ${host}: ${url}`,
+            html: `<p>Click <a href="${url}">here</a> to sign in to ${host}</p>`,
+          });
+          const failed = result.rejected.concat(result.pending).filter(Boolean);
+          if (failed.length) {
+            console.error("Email verification failed:", failed);
+            throw new Error(`Email(s) (${failed.join(", ")}) could not be sent`);
+          }
+        } catch (error) {
+          console.error("Error sending verification email:", error);
+          throw error;
         }
       },
     }),
@@ -112,12 +165,27 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.sub!;
+      try {
+        if (session.user) {
+          session.user.id = token.sub!;
+        }
+        return session;
+      } catch (error) {
+        console.error("Error in session callback:", error);
+        throw error;
       }
-      return session;
+    },
+    async signIn({ user, account, profile, email, credentials }) {
+      try {
+        console.log("Sign in attempt:", { user, account, profile, email, credentials });
+        return true;
+      } catch (error) {
+        console.error("Error in signIn callback:", error);
+        return false;
+      }
     },
   },
+  debug: true,
 };
 
 export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth(authOptions)
