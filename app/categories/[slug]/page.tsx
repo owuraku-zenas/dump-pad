@@ -1,15 +1,24 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Search, Lightbulb, FileEdit, Filter, FolderOpen } from "lucide-react"
+import { ArrowLeft, Search, Lightbulb, FileEdit, Filter, FolderOpen, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { initialDumpNotes, initialDocNotes } from "@/lib/mock-data"
+
+interface Category {
+  id: string
+  name: string
+  color?: string
+  userId: string
+  createdAt: string
+  updatedAt: string
+}
 
 export default function CategoryPage({ params }) {
   const router = useRouter()
@@ -17,34 +26,50 @@ export default function CategoryPage({ params }) {
   const [activeTab, setActiveTab] = useState("all")
   const [sortBy, setSortBy] = useState("newest")
   const [showFilters, setShowFilters] = useState(false)
+  const [category, setCategory] = useState<Category | null>(null)
+  const [loadingCategory, setLoadingCategory] = useState(true)
+  const [categoryError, setCategoryError] = useState<string | null>(null)
 
   // Decode the slug to get the category name
-  const categoryName = params.slug
+  const categoryNameFromSlug = params.slug
     .replace(/-/g, " ")
     .split(" ")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ")
 
+  useEffect(() => {
+    const fetchCategory = async () => {
+      try {
+        setLoadingCategory(true)
+        // Assuming you have an API endpoint to get category by name or can find by name from all categories
+        // For now, we'll fetch all and find. A dedicated endpoint would be more efficient.
+        const response = await fetch("/api/categories")
+        if (!response.ok) {
+          throw new Error("Failed to fetch categories")
+        }
+        const categories: Category[] = await response.json()
+        const foundCategory = categories.find(cat => cat.name.toLowerCase() === categoryNameFromSlug.toLowerCase())
+        
+        if (foundCategory) {
+          setCategory(foundCategory)
+        } else {
+          setCategoryError("Category not found")
+        }
+      } catch (error) {
+        setCategoryError((error as Error).message)
+      } finally {
+        setLoadingCategory(false)
+      }
+    }
+
+    fetchCategory()
+  }, [categoryNameFromSlug]) // Re-fetch if slug changes
+
   // Get all notes
   const allNotes = [...initialDumpNotes, ...initialDocNotes]
 
   // Filter notes by category
-  const categoryNotes = allNotes.filter((note) => note.category.toLowerCase() === categoryName.toLowerCase())
-
-  // Get category color
-  const colors = [
-    "bg-blue-500",
-    "bg-green-500",
-    "bg-purple-500",
-    "bg-amber-500",
-    "bg-red-500",
-    "bg-indigo-500",
-    "bg-pink-500",
-    "bg-teal-500",
-    "bg-orange-500",
-  ]
-  const colorIndex = Math.abs(categoryName.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0)) % colors.length
-  const categoryColor = colors[colorIndex]
+  const categoryNotes = allNotes.filter((note) => note.category.toLowerCase() === categoryNameFromSlug.toLowerCase())
 
   // Filter notes based on active tab, search query
   const filteredNotes = categoryNotes.filter((note) => {
@@ -71,7 +96,7 @@ export default function CategoryPage({ params }) {
   })
 
   // Sort notes
-  const sortedNotes = [...filteredNotes].sort((a, b) => {
+  const sortedNotes = useMemo(() => [...filteredNotes].sort((a, b) => {
     if (sortBy === "newest") return b.date.getTime() - a.date.getTime()
     if (sortBy === "oldest") return a.date.getTime() - b.date.getTime()
     if (sortBy === "alphabetical") {
@@ -80,7 +105,7 @@ export default function CategoryPage({ params }) {
       return titleA.localeCompare(titleB)
     }
     return 0
-  })
+  }), [filteredNotes, sortBy])
 
   // Render note card
   const renderNoteCard = (note) => {
@@ -143,6 +168,30 @@ export default function CategoryPage({ params }) {
     )
   }
 
+  if (loadingCategory) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-12 w-12 animate-spin" />
+      </div>
+    )
+  }
+
+  if (categoryError) {
+    return (
+      <div className="flex items-center justify-center h-screen text-red-500">
+        Error loading category: {categoryError}
+      </div>
+    )
+  }
+
+  if (!category) {
+    return (
+      <div className="flex items-center justify-center h-screen text-gray-500">
+        Category not found.
+      </div>
+    )
+  }
+
   return (
     <div className="container mx-auto px-4 py-6 max-w-7xl">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
@@ -152,8 +201,8 @@ export default function CategoryPage({ params }) {
           </Button>
           <div>
             <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${categoryColor}`}></div>
-              <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">{categoryName}</h1>
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: category.color || "#000000" }}></div>
+              <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">{category.name}</h1>
             </div>
             <p className="text-gray-500 dark:text-gray-400">
               {filteredNotes.length} note{filteredNotes.length !== 1 ? "s" : ""} in this category
@@ -161,13 +210,13 @@ export default function CategoryPage({ params }) {
           </div>
         </div>
         <div className="flex gap-2 mt-4 md:mt-0">
-          <Link href={`/notes/new?mode=dump&category=${categoryName}`}>
+          <Link href={`/notes/new?mode=dump&category=${category.name}`}>
             <Button variant="outline" className="flex items-center gap-2">
               <Lightbulb size={16} />
               New Idea
             </Button>
           </Link>
-          <Link href={`/notes/new?mode=doc&category=${categoryName}`}>
+          <Link href={`/notes/new?mode=doc&category=${category.name}`}>
             <Button className="flex items-center gap-2">
               <FileEdit size={16} />
               New Document
@@ -182,7 +231,7 @@ export default function CategoryPage({ params }) {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
             <Input
               type="text"
-              placeholder={`Search in ${categoryName}...`}
+              placeholder={`Search in ${category.name}...`}
               className="pl-10"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -245,7 +294,7 @@ export default function CategoryPage({ params }) {
         </TabsList>
       </Tabs>
 
-      {sortedNotes.length === 0 ? (
+      {filteredNotes.length === 0 ? (
         <div className="text-center py-12">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
             <FolderOpen size={24} className="text-gray-400" />
@@ -258,7 +307,7 @@ export default function CategoryPage({ params }) {
           </p>
           <div className="flex justify-center gap-4">
             {activeTab !== "documents" && (
-              <Link href={`/notes/new?mode=dump&category=${categoryName}`}>
+              <Link href={`/notes/new?mode=dump&category=${category.name}`}>
                 <Button variant="outline" className="flex items-center gap-2">
                   <Lightbulb size={16} />
                   New Idea
@@ -266,7 +315,7 @@ export default function CategoryPage({ params }) {
               </Link>
             )}
             {activeTab !== "ideas" && (
-              <Link href={`/notes/new?mode=doc&category=${categoryName}`}>
+              <Link href={`/notes/new?mode=doc&category=${category.name}`}>
                 <Button className="flex items-center gap-2">
                   <FileEdit size={16} />
                   New Document

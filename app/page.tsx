@@ -7,11 +7,13 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { useTheme } from "next-themes"
-import { FileEdit, Lightbulb, Calendar, CheckCircle, BarChart3, ArrowRight, BookOpen, Tag } from "lucide-react"
+import { FolderOpen, Loader2, FileEdit, Lightbulb, Calendar, CheckCircle, BarChart3, ArrowRight, BookOpen, Tag } from "lucide-react"
 import Link from "next/link"
 import RecentNotes from "@/components/recent-notes"
 import WeeklySummary from "@/components/weekly-summary"
 import { useNotification } from "@/components/notification-provider"
+import { useCategories } from "@/hooks/useCategories"
+import { formatDistanceToNow } from "date-fns"
 
 export default function Dashboard() {
   const { theme } = useTheme()
@@ -64,6 +66,8 @@ export default function Dashboard() {
     { name: "Biology", count: 5, color: "bg-red-500" },
     { name: "Computer Science", count: 3, color: "bg-indigo-500" },
   ]
+
+  const { categories: apiCategories, isLoading, error } = useCategories()
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-7xl">
@@ -295,49 +299,54 @@ export default function Dashboard() {
         </TabsContent>
 
         <TabsContent value="categories" className="mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {categories.map((category, index) => (
-              <Card key={index} className="overflow-hidden">
-                <div className={`h-1 ${category.color}`}></div>
-                <CardHeader>
-                  <CardTitle className="flex justify-between items-center">
-                    <span>{category.name}</span>
-                    <Badge>{category.count}</Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pb-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <Lightbulb size={14} className="text-amber-500" />
-                      <span>Ideas: {Math.round(category.count * 0.7)}</span>
+          {isLoading ? (
+            <div className="flex items-center justify-center p-8">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : error ? (
+            <div className="p-4 text-red-500">
+              Error loading categories: {(error as Error).message}
+            </div>
+          ) : apiCategories && apiCategories.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {apiCategories.map((category) => (
+                <Card key={category.id} className="overflow-hidden">
+                  <div className={`h-1`} style={{ backgroundColor: category.color || "#000000" }}></div>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-base font-medium flex items-center gap-2">
+                      <FolderOpen size={18} className={category.color?.replace("bg-", "text-")} />
+                      <span>{category.name}</span>
+                    </CardTitle>
+                    <Badge variant="secondary">0</Badge>
+                  </CardHeader>
+                  <CardContent className="pb-2 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Lightbulb size={14} />
+                      <span>Ideas: 0</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <FileEdit size={14} className="text-blue-500" />
-                      <span>Docs: {Math.round(category.count * 0.3)}</span>
+                    <div className="flex items-center gap-2 mb-2">
+                      <FileEdit size={14} />
+                      <span>Docs: 0</span>
                     </div>
-                  </div>
-                </CardContent>
-                <CardFooter>
-                  <Link href={`/categories/${category.name.toLowerCase().replace(/\s+/g, "-")}`} className="w-full">
-                    <Button variant="outline" size="sm" className="w-full">
-                      View Category
-                    </Button>
-                  </Link>
-                </CardFooter>
-              </Card>
-            ))}
-
-            <Card className="border-dashed">
-              <CardHeader>
-                <CardTitle className="text-gray-500 dark:text-gray-400">Create New Category</CardTitle>
-              </CardHeader>
-              <CardContent className="flex items-center justify-center h-24">
-                <Button variant="ghost" className="h-12 w-12 rounded-full">
-                  +
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
+                    {category.updatedAt && (
+                      <p className="text-xs">Last updated: {formatDistanceToNow(new Date(category.updatedAt), { addSuffix: true })}</p>
+                    )}
+                  </CardContent>
+                  <CardFooter className="flex justify-end pt-2">
+                    <Link href={`/categories/${category.name.toLowerCase().replace(/\s+/g, "-")}`}>
+                      <Button variant="outline" size="sm" className="flex items-center gap-1">
+                        View <ArrowRight size={14} />
+                      </Button>
+                    </Link>
+                  </CardFooter>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              No categories found. Create your first category on the Categories page.
+            </div>
+          )}
 
           <div className="mt-6">
             <Card>
