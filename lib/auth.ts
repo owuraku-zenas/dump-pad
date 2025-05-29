@@ -11,6 +11,7 @@ import { JWT } from "next-auth/jwt"
 import { createTransport } from "nodemailer"
 import { NextAuthOptions } from "next-auth"
 import { prisma } from "@/lib/prisma"
+import { Session } from "next-auth"
 
 // Custom adapter to handle account linking
 const customAdapter: Adapter = {
@@ -164,7 +165,7 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
   },
   callbacks: {
-    async session({ session, token }) {
+    async session({ session, token }: { session: Session; token: JWT }) {
       try {
         if (session.user) {
           session.user.id = token.sub!;
@@ -175,9 +176,46 @@ export const authOptions: NextAuthOptions = {
         throw error;
       }
     },
-    async signIn({ user, account, profile, email, credentials }) {
+    async signIn({ 
+      user, 
+      account, 
+      profile, 
+      email, 
+      credentials 
+    }: { 
+      user: AdapterUser; 
+      account: AdapterAccount | null; 
+      profile?: any; 
+      email?: { verificationRequest?: boolean }; 
+      credentials?: Record<string, string> 
+    }) {
       try {
         console.log("Sign in attempt:", { user, account, profile, email, credentials });
+        
+        if (account?.provider === "google" || account?.provider === "github") {
+          // Check if this account is already linked to another user
+          const existingAccount = await db.account.findFirst({
+            where: {
+              provider: account.provider,
+              providerAccountId: account.providerAccountId,
+            },
+          });
+
+          if (existingAccount) {
+            // If the account is already linked to the current user, allow sign in
+            if (existingAccount.userId === user.id) {
+              return true;
+            }
+            
+            // If the account is linked to another user, update the link
+            await db.account.update({
+              where: { id: existingAccount.id },
+              data: { userId: user.id },
+            });
+            return true;
+          }
+        }
+        
         return true;
       } catch (error) {
         console.error("Error in signIn callback:", error);
