@@ -1,35 +1,22 @@
 import { NextResponse } from "next/server"
-import { NextRequest } from "next/server"
 import { getToken } from "next-auth/jwt"
 
-export async function middleware(request: NextRequest) {
+export async function middleware(request: Request) {
   const token = await getToken({ 
     req: request,
-    secret: process.env.NEXTAUTH_SECRET,
-    secureCookie: process.env.NODE_ENV === "production"
+    secret: process.env.NEXTAUTH_SECRET
   })
-  
-  // Check if the user is authenticated
-  if (!token) {
-    const signInUrl = new URL("/auth/signin", request.url)
-    signInUrl.searchParams.set("callbackUrl", request.url)
-    return NextResponse.redirect(signInUrl)
+  const isLoggedIn = !!token
+  const isAuthRoute = request.url.includes("/auth")
+
+  if (isLoggedIn && isAuthRoute) {
+    return NextResponse.redirect(new URL("/", request.url))
   }
-  
+
   return NextResponse.next()
 }
 
-// Protect all routes except auth-related ones
+// Optionally, configure which routes to run middleware on
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api/auth (auth API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - auth (auth pages)
-     */
-    "/((?!api/auth|_next/static|_next/image|favicon.ico|auth).*)",
-  ],
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
 } 

@@ -12,10 +12,12 @@ import { GoogleIcon } from "@/components/icons/google"
 import Link from "next/link"
 import AuthLayout from "@/components/auth/AuthLayout"
 import PasswordInput from "@/components/auth/PasswordInput"
+import { useToast } from "@/hooks/use-toast"
 
 export default function SignIn() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { toast } = useToast()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
@@ -35,7 +37,13 @@ export default function SignIn() {
       })
 
       if (!result?.ok) {
-        setError(result?.error || "Invalid email or password")
+        const errorMessage = result?.error || "An error occurred during sign in"
+        setError(errorMessage)
+        toast({
+          variant: "destructive",
+          title: "Authentication Error",
+          description: errorMessage,
+        })
         return
       }
 
@@ -43,7 +51,13 @@ export default function SignIn() {
       router.push(callbackUrl)
     } catch (error) {
       console.error("Sign in error:", error)
-      setError("An error occurred. Please try again.")
+      const errorMessage = "An error occurred. Please try again."
+      setError(errorMessage)
+      toast({
+        variant: "destructive",
+        title: "Authentication Error",
+        description: errorMessage,
+      })
     } finally {
       setIsLoading(false)
     }
@@ -56,7 +70,13 @@ export default function SignIn() {
         callbackUrl: searchParams.get("callbackUrl") || "/",
       })
     } catch (error) {
-      setError(`Failed to sign in with ${provider}`)
+      const errorMessage = `Failed to sign in with ${provider}`
+      setError(errorMessage)
+      toast({
+        variant: "destructive",
+        title: "Authentication Error",
+        description: errorMessage,
+      })
     } finally {
       setIsSocialLoading(null)
     }
