@@ -9,8 +9,14 @@ export async function middleware(request: Request) {
   const isLoggedIn = !!token
   const isAuthRoute = request.url.includes("/auth")
 
+  // Redirect authenticated users away from auth routes
   if (isLoggedIn && isAuthRoute) {
     return NextResponse.redirect(new URL("/", request.url))
+  }
+
+  // Redirect unauthenticated users to sign in
+  if (!isLoggedIn && !isAuthRoute) {
+    return NextResponse.redirect(new URL("/auth/signin", request.url))
   }
 
   return NextResponse.next()

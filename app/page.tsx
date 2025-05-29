@@ -1,6 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useSession } from "next-auth/react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -16,9 +18,34 @@ import { useCategories } from "@/hooks/useCategories"
 import { formatDistanceToNow } from "date-fns"
 
 export default function Dashboard() {
+  // All hooks must be called at the top level
+  const { data: session, status } = useSession()
+  const router = useRouter()
   const { theme } = useTheme()
   const { addNotification } = useNotification()
   const [activeTab, setActiveTab] = useState("overview")
+  const { categories: apiCategories, isLoading, error } = useCategories()
+
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/auth/signin")
+    }
+  }, [status, router])
+
+  if (status === "loading") {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!session) {
+    return null
+  }
 
   // Mock data for dashboard stats
   const stats = {
@@ -66,8 +93,6 @@ export default function Dashboard() {
     { name: "Biology", count: 5, color: "bg-red-500" },
     { name: "Computer Science", count: 3, color: "bg-indigo-500" },
   ]
-
-  const { categories: apiCategories, isLoading, error } = useCategories()
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-7xl">
