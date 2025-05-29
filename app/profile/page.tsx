@@ -42,6 +42,13 @@ export default function ProfilePage() {
   const [accounts, setAccounts] = useState<Account[]>([])
   const [isConnecting, setIsConnecting] = useState<string | null>(null)
   const [isDisconnecting, setIsDisconnecting] = useState<string | null>(null)
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  })
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
+  const [passwordError, setPasswordError] = useState("")
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -185,6 +192,70 @@ export default function ProfilePage() {
       setError(error instanceof Error ? error.message : "Something went wrong")
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setPasswordError("")
+    setIsChangingPassword(true)
+
+    // Validate passwords
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "New passwords do not match",
+      })
+      setIsChangingPassword(false)
+      return
+    }
+
+    if (passwordData.newPassword.length < 8) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "New password must be at least 8 characters long",
+      })
+      setIsChangingPassword(false)
+      return
+    }
+
+    try {
+      const response = await fetch("/api/user/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword: passwordData.currentPassword,
+          newPassword: passwordData.newPassword,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to change password")
+      }
+
+      toast({
+        title: "Success",
+        description: "Password changed successfully",
+      })
+
+      // Clear the form
+      setPasswordData({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      })
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to change password",
+      })
+    } finally {
+      setIsChangingPassword(false)
     }
   }
 
@@ -339,18 +410,57 @@ export default function ProfilePage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <h3 className="text-lg font-medium">Change Password</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Update your password to keep your account secure
-                  </p>
-                  <Button
-                    variant="outline"
-                    onClick={() => router.push("/auth/forgot-password")}
-                  >
-                    Change Password
+                <form onSubmit={handlePasswordChange} className="space-y-4">
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-medium">Change Password</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Update your password to keep your account secure
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="currentPassword">Current Password</Label>
+                    <Input
+                      id="currentPassword"
+                      type="password"
+                      value={passwordData.currentPassword}
+                      onChange={(e) =>
+                        setPasswordData({ ...passwordData, currentPassword: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="newPassword">New Password</Label>
+                    <Input
+                      id="newPassword"
+                      type="password"
+                      value={passwordData.newPassword}
+                      onChange={(e) =>
+                        setPasswordData({ ...passwordData, newPassword: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                    <Input
+                      id="confirmPassword"
+                      type="password"
+                      value={passwordData.confirmPassword}
+                      onChange={(e) =>
+                        setPasswordData({ ...passwordData, confirmPassword: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+
+                  <Button type="submit" disabled={isChangingPassword}>
+                    {isChangingPassword ? "Changing Password..." : "Change Password"}
                   </Button>
-                </div>
+                </form>
 
                 <Separator />
 
