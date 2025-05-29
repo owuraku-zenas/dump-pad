@@ -24,7 +24,7 @@ export default function Dashboard() {
   const { theme } = useTheme()
   const { addNotification } = useNotification()
   const [activeTab, setActiveTab] = useState("overview")
-  const { categories: apiCategories, isLoading, error } = useCategories()
+  const { categories: apiCategories, isLoading: categoriesLoading, error: categoriesError } = useCategories()
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -178,16 +178,20 @@ export default function Dashboard() {
             <Card>
               <CardHeader className="pb-2">
                 <CardDescription>Categories</CardDescription>
-                <CardTitle className="text-2xl">{stats.categories}</CardTitle>
+                <CardTitle className="text-2xl">{apiCategories?.length || 0}</CardTitle>
               </CardHeader>
               <CardContent className="pb-2">
                 <div className="flex items-center gap-1">
-                  {categories.slice(0, 5).map((category, index) => (
-                    <div key={index} className={`w-2 h-2 rounded-full ${category.color}`}></div>
+                  {apiCategories?.slice(0, 5).map((category, index) => (
+                    <div key={category.id} className={`w-2 h-2 rounded-full`} style={{ backgroundColor: category.color || "#000000" }}></div>
                   ))}
-                  {categories.length > 5 && <div className="w-2 h-2 rounded-full bg-gray-300 dark:bg-gray-600"></div>}
+                  {apiCategories && apiCategories.length > 5 && <div className="w-2 h-2 rounded-full bg-gray-300 dark:bg-gray-600"></div>}
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Most active: {categories[0].name}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                  {apiCategories && apiCategories.length > 0 
+                    ? `Most active: ${apiCategories.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0].name}`
+                    : "No categories yet"}
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -324,13 +328,13 @@ export default function Dashboard() {
         </TabsContent>
 
         <TabsContent value="categories" className="mt-6">
-          {isLoading ? (
+          {categoriesLoading ? (
             <div className="flex items-center justify-center p-8">
               <Loader2 className="h-8 w-8 animate-spin" />
             </div>
-          ) : error ? (
+          ) : categoriesError ? (
             <div className="p-4 text-red-500">
-              Error loading categories: {(error as Error).message}
+              Error loading categories: {(categoriesError as Error).message}
             </div>
           ) : apiCategories && apiCategories.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
